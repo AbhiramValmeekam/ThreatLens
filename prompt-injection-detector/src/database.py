@@ -29,7 +29,21 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 # ─── Configuration ────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "prompt_injection.db")
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+
+# Allow database override via environment variables or Streamlit Secrets (useful for cloud hosting)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and "database" in st.secrets and "url" in st.secrets["database"]:
+            DATABASE_URL = st.secrets["database"]["url"]
+        elif hasattr(st, "secrets") and "database_url" in st.secrets:
+            DATABASE_URL = st.secrets["database_url"]
+    except Exception:
+        pass
+
+if not DATABASE_URL:
+    DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 Base = declarative_base()
 engine = None
