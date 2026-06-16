@@ -1,0 +1,227 @@
+# ============================================================
+# Rule Engine — Regex Patterns for Attack Detection
+# ============================================================
+# Each rule has:
+#   - pattern: regex pattern (case-insensitive matching)
+#   - category: attack category ID (1-7)
+#   - severity_weight: how much this pattern contributes to risk (0.0-1.0)
+#   - description: human-readable explanation
+
+rules:
+
+  # ─── Category 1: Prompt Injection ───────────────────────────
+  - pattern: "ignore\\s+(all\\s+)?(previous|prior|above|earlier)\\s+(instructions|prompts|directives|rules)"
+    category: 1
+    severity_weight: 0.9
+    description: "Instruction Override Pattern — attempts to nullify system instructions"
+
+  - pattern: "forget\\s+(everything|all|your)\\s+(you were told|your instructions|instructions|rules|guidelines)"
+    category: 1
+    severity_weight: 0.85
+    description: "Memory Wipe Pattern — attempts to erase prior context"
+
+  - pattern: "disregard\\s+(your|all|previous|any|the)?\\s*(safety|instructions|rules|guidelines|policies|constraints|restrictions)"
+    category: 1
+    severity_weight: 0.9
+    description: "Safety Bypass Pattern — attempts to disable safety constraints"
+
+  - pattern: "your\\s+(new|real|true|actual|updated)\\s+instructions\\s+(are|is|will be|shall be)"
+    category: 1
+    severity_weight: 0.95
+    description: "Instruction Replacement Pattern — injects new system instructions"
+
+  - pattern: "override\\s+(all\\s+)?(previous|prior|safety|security)\\s*(instructions|rules|policies|settings)?"
+    category: 1
+    severity_weight: 0.9
+    description: "Direct Override Pattern — explicit instruction override attempt"
+
+  - pattern: "from\\s+now\\s+on,?\\s+(you\\s+will|you\\s+must|you\\s+should|ignore|disregard)"
+    category: 1
+    severity_weight: 0.8
+    description: "Temporal Override Pattern — resets behavior from this point forward"
+
+  - pattern: "stop\\s+being\\s+(an?\\s+)?(ai|assistant|chatbot|helpful)"
+    category: 1
+    severity_weight: 0.75
+    description: "Identity Rejection Pattern — attempts to reject AI identity"
+
+  # ─── Category 2: Jailbreak ─────────────────────────────────
+  - pattern: "you\\s+are\\s+now\\s+(DAN|STAN|DUDE|KEVIN|EVIL|CHAOS|AIM|MAX|JB)"
+    category: 2
+    severity_weight: 0.95
+    description: "Known Jailbreak Persona — uses a recognized jailbreak character name"
+
+  - pattern: "do\\s+anything\\s+now"
+    category: 2
+    severity_weight: 0.95
+    description: "DAN Pattern — 'Do Anything Now' jailbreak"
+
+  - pattern: "(no|without|zero|remove|disable|bypass)\\s*(restrictions|limitations|filters|boundaries|rules|guardrails|constraints)"
+    category: 2
+    severity_weight: 0.85
+    description: "Restriction Removal Pattern — attempts to remove safety guardrails"
+
+  - pattern: "jailbreak(ed|ing)?"
+    category: 2
+    severity_weight: 0.9
+    description: "Explicit Jailbreak Reference — directly mentions jailbreaking"
+
+  - pattern: "developer\\s+mode\\s+(enabled|activated|on|output)"
+    category: 2
+    severity_weight: 0.9
+    description: "Developer Mode Pattern — mimics a special unrestricted mode"
+
+  - pattern: "pretend\\s+(you\\s+)?(are|have|can|don'?t|do not)\\s*(no|not|any)?\\s*(restrictions|rules|limits|filters|guidelines|ethics)?"
+    category: 2
+    severity_weight: 0.8
+    description: "Pretense Pattern — asks model to pretend it has different capabilities"
+
+  - pattern: "act\\s+as\\s+if\\s+(you\\s+)?(have|had|are|were)\\s+(no|free|unlimited|unrestricted)"
+    category: 2
+    severity_weight: 0.85
+    description: "Unrestricted Mode Pattern — asks model to act without limits"
+
+  - pattern: "in\\s+this\\s+hypothetical\\s+scenario.*no\\s+(rules|restrictions|limits|ethics)"
+    category: 2
+    severity_weight: 0.8
+    description: "Hypothetical Bypass Pattern — uses fictional framing to bypass rules"
+
+  # ─── Category 3: Role Hijacking ────────────────────────────
+  - pattern: "you\\s+are\\s+now\\s+(a|an|my|the)"
+    category: 3
+    severity_weight: 0.7
+    description: "Role Reassignment Pattern — reassigns the AI to a new role"
+
+  - pattern: "act\\s+as\\s+(a|an|if|my|the)"
+    category: 3
+    severity_weight: 0.6
+    description: "Role Impersonation Pattern — requests the AI to act as something else"
+
+  - pattern: "(assume|adopt|take on|switch to)\\s+(the\\s+)?(role|persona|identity|character)\\s+(of|as)"
+    category: 3
+    severity_weight: 0.7
+    description: "Identity Switch Pattern — explicitly requests a persona change"
+
+  - pattern: "respond\\s+(only\\s+)?as\\s+(a|an|if|though)"
+    category: 3
+    severity_weight: 0.65
+    description: "Response Override Pattern — forces response in a specific persona"
+
+  - pattern: "you\\s+are\\s+no\\s+longer\\s+(an?\\s+)?(ai|assistant|chatbot|language model)"
+    category: 3
+    severity_weight: 0.85
+    description: "Identity Erasure Pattern — denies the AI's actual identity"
+
+  # ─── Category 4: System Prompt Extraction ──────────────────
+  - pattern: "(reveal|show|display|print|output|repeat|echo|tell me|give me)\\s+(your|the|my)?\\s*(system|initial|original|hidden|secret|internal)?\\s*(prompt|instructions|configuration|directive|rules|context)"
+    category: 4
+    severity_weight: 0.9
+    description: "System Prompt Extraction — attempts to extract hidden instructions"
+
+  - pattern: "what\\s+(is|are|was|were)\\s+(your|the)\\s+(system|initial|original|first|starting)\\s*(prompt|instructions|message|directive)"
+    category: 4
+    severity_weight: 0.85
+    description: "System Prompt Query — questions about system configuration"
+
+  - pattern: "print\\s+(your\\s+)?system\\s+prompt"
+    category: 4
+    severity_weight: 0.95
+    description: "Direct Extraction Command — explicit command to output system prompt"
+
+  - pattern: "beginning\\s+of\\s+(the|this|your)\\s+conversation"
+    category: 4
+    severity_weight: 0.7
+    description: "Conversation Start Probe — attempts to access initial context"
+
+  - pattern: "\\[system\\]"
+    category: 4
+    severity_weight: 0.8
+    description: "System Role Injection — uses system role tag to inject instructions"
+
+  # ─── Category 5: Data Exfiltration ─────────────────────────
+  - pattern: "(exfiltrate|extract|steal|leak|expose|dump)\\s+(all\\s+)?(the\\s+)?(data|information|records|users|emails|passwords|credentials|secrets|keys|tokens)"
+    category: 5
+    severity_weight: 0.95
+    description: "Data Exfiltration Pattern — attempts to extract sensitive data"
+
+  - pattern: "(send|transmit|forward|post|upload)\\s+(to|data to|information to)\\s*(https?://|\\w+\\.\\w+)"
+    category: 5
+    severity_weight: 0.9
+    description: "Data Transmission Pattern — attempts to send data to external URL"
+
+  - pattern: "output\\s+(all|every|the entire)\\s+(database|table|record|user|data|content)"
+    category: 5
+    severity_weight: 0.85
+    description: "Bulk Data Dump Pattern — attempts to dump all stored data"
+
+  - pattern: "(list|show|give me)\\s+(all\\s+)?(users?|emails?|passwords?|api\\s*keys?|credentials|secrets)"
+    category: 5
+    severity_weight: 0.8
+    description: "Credential Enumeration Pattern — attempts to list sensitive credentials"
+
+  - pattern: "encode\\s+(the|this|all)\\s+(data|information|content)\\s+(in|as|to)\\s+(base64|hex|binary)"
+    category: 5
+    severity_weight: 0.75
+    description: "Encoding Evasion Pattern — uses encoding to obfuscate data theft"
+
+  # ─── Category 6: Indirect Prompt Injection ─────────────────
+  - pattern: "<!--.*?-->"
+    category: 6
+    severity_weight: 0.8
+    description: "HTML Comment Injection — hidden instructions in HTML comments"
+
+  - pattern: "\\{\\{.*?(system|instruction|ignore|override|forget|disregard).*?\\}\\}"
+    category: 6
+    severity_weight: 0.75
+    description: "Template Injection — hidden instructions in template syntax"
+
+  - pattern: "<(script|style|iframe|object|embed).*?>"
+    category: 6
+    severity_weight: 0.85
+    description: "HTML Tag Injection — potentially malicious HTML elements"
+
+  - pattern: "\\[INST\\]|\\[/INST\\]|<<SYS>>|<</SYS>>"
+    category: 6
+    severity_weight: 0.9
+    description: "LLM Format Injection — uses model-specific formatting tokens"
+
+  - pattern: "(hidden|invisible|secret)\\s+(text|instructions?|message|content|prompt)"
+    category: 6
+    severity_weight: 0.7
+    description: "Hidden Content Pattern — references concealed instructions"
+
+  - pattern: "\\u200b|\\u200c|\\u200d|\\ufeff"
+    category: 6
+    severity_weight: 0.75
+    description: "Zero-Width Character Injection — uses invisible unicode characters"
+
+  # ─── Category 7: Tool Abuse ────────────────────────────────
+  - pattern: "(execute|run|eval|exec)\\s+(this\\s+)?(command|code|script|function|query|sql)"
+    category: 7
+    severity_weight: 0.85
+    description: "Code Execution Pattern — attempts to run arbitrary code"
+
+  - pattern: "(call|invoke|trigger|use)\\s+(the\\s+)?(function|api|tool|endpoint|plugin|action)\\s+\\w+"
+    category: 7
+    severity_weight: 0.7
+    description: "Tool Invocation Pattern — attempts to call internal tools"
+
+  - pattern: "(access|read|write|modify|delete)\\s+(the\\s+)?(file|filesystem|directory|database|server|system)"
+    category: 7
+    severity_weight: 0.8
+    description: "Filesystem Access Pattern — attempts to access the file system"
+
+  - pattern: "(import|require|include|load)\\s+(os|subprocess|sys|shutil|requests)"
+    category: 7
+    severity_weight: 0.9
+    description: "Module Import Pattern — attempts to import dangerous modules"
+
+  - pattern: "(rm\\s+-rf|sudo|chmod|chown|wget|curl)\\s+"
+    category: 7
+    severity_weight: 0.95
+    description: "Shell Command Pattern — attempts to execute shell commands"
+
+  - pattern: "(drop\\s+table|truncate|delete\\s+from|union\\s+select|;\\s*--)"
+    category: 7
+    severity_weight: 0.9
+    description: "SQL Injection Pattern — attempts SQL injection through the prompt"
