@@ -16,7 +16,8 @@ import json
 import csv
 import io
 from typing import Optional, List
-from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, Query, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware

@@ -19,6 +19,8 @@ Usage:
 import os
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
+from dotenv import load_dotenv
+load_dotenv()
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime,
