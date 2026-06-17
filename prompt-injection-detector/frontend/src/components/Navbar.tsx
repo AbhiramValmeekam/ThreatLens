@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -13,7 +13,15 @@ const PAGE_TITLES: Record<string, string> = {
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const title = PAGE_TITLES[pathname] || "ThreatLens Console";
+
+  const handleLogout = () => {
+    if (confirm("Are you sure you want to log out of ThreatLens?")) {
+      localStorage.removeItem("token");
+      router.push("/login");
+    }
+  };
 
   return (
     <header className="top-navbar">
@@ -50,8 +58,13 @@ export default function Navbar() {
           </Link>
         )}
 
-        {/* Mock Profile Avatar */}
-        <div className="user-profile">
+        {/* Mock Profile Avatar (Click to Logout) */}
+        <div
+          className="user-profile"
+          onClick={handleLogout}
+          title="Sign Out of ThreatLens"
+          style={{ cursor: "pointer" }}
+        >
           <div className="avatar-gradient">AV</div>
         </div>
       </div>

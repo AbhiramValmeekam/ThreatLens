@@ -60,6 +60,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     def __repr__(self):
@@ -141,6 +142,17 @@ def init_db(db_url: Optional[str] = None) -> None:
 
     # Create all tables if they don't exist
     Base.metadata.create_all(engine)
+
+    # Simple migration: ensure users table has password_hash column
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(users)"))
+            columns = [row[1] for row in result.fetchall()]
+            if "password_hash" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)"))
+    except Exception as e:
+        pass
 
 
 def get_session() -> Session:
@@ -473,5 +485,29 @@ def get_severity_breakdown() -> List[Dict[str, Any]]:
             .all()
         )
         return [{"severity": r[0], "count": r[1]} for r in results]
+    finally:
+        session.close()
+
+
+def create_user(email: str, password_hash: str) -> User:
+    """Create a new user in the database."""
+    session = get_session()
+    try:
+        user = User(email=email.strip().lower(), password_hash=password_hash)
+        session.add(user)
+        session.commit()
+        return user
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
+def get_user_by_email(email: str) -> Optional[User]:
+    """Retrieve a user by their email address."""
+    session = get_session()
+    try:
+        return session.query(User).filter(User.email == email.strip().lower()).first()
     finally:
         session.close()
