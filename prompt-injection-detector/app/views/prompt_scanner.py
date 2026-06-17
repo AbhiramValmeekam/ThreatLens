@@ -200,15 +200,12 @@ def render():
 
     with example_col:
         st.markdown("**Quick Examples**")
-        selected_example = None
         for label, prompt in EXAMPLE_PROMPTS.items():
             if st.button(label, use_container_width=True, key=f"ex_{label}"):
-                selected_example = prompt
+                st.session_state["scanner_input"] = prompt
 
     with input_col:
-        # Use session state to handle example button clicks
-        if selected_example:
-            st.session_state["scanner_input"] = selected_example
+        # Use session state to handle example button
 
         user_prompt = st.text_area(
             "Enter a prompt to analyze",
