@@ -73,16 +73,16 @@ class DeBERTaDetector(BaseDetector):
 
     def load(self) -> bool:
         """Load the DeBERTa model and tokenizer from disk."""
+        if not os.path.exists(self.model_path):
+            print(f"[DeBERTaDetector] Model directory not found: {self.model_path}")
+            return False
+
         try:
             from transformers import (
                 AutoTokenizer,
                 AutoModelForSequenceClassification,
             )
             import torch
-
-            if not os.path.exists(self.model_path):
-                print(f"[DeBERTaDetector] Model directory not found: {self.model_path}")
-                return False
 
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
             self.model = AutoModelForSequenceClassification.from_pretrained(

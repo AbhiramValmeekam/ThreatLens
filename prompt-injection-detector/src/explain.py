@@ -21,6 +21,7 @@ import re
 from typing import Dict, Any, List, Optional, Tuple
 
 import numpy as np
+import streamlit as st
 
 # ─── Paths ────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -431,3 +432,19 @@ class ExplainabilityEngine:
             })
 
         return factors
+
+
+# ============================================================
+# Module-level singleton
+# ============================================================
+
+_explainer_instance: Optional[ExplainabilityEngine] = None
+
+
+@st.cache_resource
+def get_explainer() -> ExplainabilityEngine:
+    """Get or create the default ExplainabilityEngine singleton."""
+    global _explainer_instance
+    if _explainer_instance is None:
+        _explainer_instance = ExplainabilityEngine()
+    return _explainer_instance

@@ -30,7 +30,7 @@ def render():
 
     from src.database import init_db, save_scan
     from src.ensemble import get_detector
-    from src.explain import ExplainabilityEngine
+    from src.explain import get_explainer
 
     # ─── Page Config ──────────────────────────────────────────────
 
@@ -233,7 +233,7 @@ def render():
 
             # Get explanations
             try:
-                explainer = ExplainabilityEngine()
+                explainer = get_explainer()
                 explanation = explainer.explain(user_prompt, result.to_dict())
             except Exception:
                 explanation = {

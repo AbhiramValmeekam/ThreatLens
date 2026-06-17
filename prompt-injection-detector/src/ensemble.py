@@ -34,6 +34,7 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, asdict
 
 import yaml
+import streamlit as st
 
 from src.detector import DeBERTaDetector, SVMDetector, LogRegDetector
 from src.rule_engine import RuleEngine, ATTACK_CATEGORIES
@@ -373,6 +374,7 @@ class EnsembleDetector:
 _detector_instance: Optional[EnsembleDetector] = None
 
 
+@st.cache_resource
 def get_detector() -> EnsembleDetector:
     """Get or create the singleton EnsembleDetector."""
     global _detector_instance

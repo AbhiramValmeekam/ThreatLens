@@ -22,14 +22,11 @@ import plotly.graph_objects as go
 from datetime import datetime
 from streamlit_option_menu import option_menu
 
-# Force reload internal modules to bypass Streamlit's memory cache
-import importlib
+# Streamlit native reloader manages module updates automatically.
+# Manual reloads are disabled to allow efficient caching of ML models and resources.
 import src.database
 import src.analytics
 import src.ensemble
-importlib.reload(src.database)
-importlib.reload(src.analytics)
-importlib.reload(src.ensemble)
 
 from src.database import init_db, save_scan
 from src.analytics import get_dashboard_stats
@@ -40,10 +37,6 @@ import app.views.prompt_scanner
 import app.views.analytics
 import app.views.scan_history
 import app.views.batch_scanner
-importlib.reload(app.views.prompt_scanner)
-importlib.reload(app.views.analytics)
-importlib.reload(app.views.scan_history)
-importlib.reload(app.views.batch_scanner)
 
 from app.views import prompt_scanner
 from app.views import analytics
