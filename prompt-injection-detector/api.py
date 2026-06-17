@@ -128,6 +128,35 @@ class AuthRequest(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+
+
+# ─── Google OAuth Verification ───────────────────────────────
+
+import urllib.request
+import urllib.parse
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+
+
+def verify_google_token(id_token: str) -> Optional[dict]:
+    """Verify Google token via Google OAuth2 API."""
+    try:
+        url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote(id_token)}"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            aud = data.get("aud")
+            if GOOGLE_CLIENT_ID and aud != GOOGLE_CLIENT_ID:
+                print("Warning: Google token aud does not match GOOGLE_CLIENT_ID")
+            if "email" in data:
+                return data
+    except Exception as e:
+        print(f"Google token verification failed: {e}")
+    return None
+
+
 # ─── Authentication Endpoints ─────────────────────────────────
 
 @app.post("/api/auth/register")
@@ -166,6 +195,35 @@ async def login(req: AuthRequest):
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
+    token = create_access_token({"sub": user.email, "id": user.id})
+    return {
+        "token": token,
+        "user": {"id": user.id, "email": user.email}
+    }
+
+
+@app.post("/api/auth/google")
+async def auth_google(req: GoogleAuthRequest):
+    """Authenticate with a Google ID Token."""
+    if not req.id_token.strip():
+        raise HTTPException(status_code=400, detail="Token cannot be empty")
+        
+    payload = verify_google_token(req.id_token)
+    if not payload:
+        raise HTTPException(status_code=400, detail="Invalid Google authentication token")
+        
+    email = payload.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email not provided by Google")
+        
+    # Check if user exists
+    user = get_user_by_email(email)
+    if not user:
+        # Create a new user with placeholder password hash
+        placeholder_hash = hash_password(os.urandom(16).hex())
+        user = create_user(email, placeholder_hash)
+        
+    # Generate session token
     token = create_access_token({"sub": user.email, "id": user.id})
     return {
         "token": token,

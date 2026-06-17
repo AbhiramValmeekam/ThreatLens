@@ -288,3 +288,14 @@ export async function registerUser(email: string, password: string): Promise<Aut
 export async function getCurrentUser(): Promise<User> {
   return apiFetch<User>("/api/auth/me");
 }
+
+export async function loginGoogleUser(idToken: string): Promise<AuthResponse> {
+  const res = await apiFetch<AuthResponse>("/api/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ id_token: idToken }),
+  });
+  if (res.token) {
+    localStorage.setItem("token", res.token);
+  }
+  return res;
+}
