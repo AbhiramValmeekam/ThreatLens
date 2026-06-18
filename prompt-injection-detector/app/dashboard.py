@@ -37,11 +37,13 @@ import app.views.prompt_scanner
 import app.views.analytics
 import app.views.scan_history
 import app.views.batch_scanner
+import app.views.firewall_simulator
 
 from app.views import prompt_scanner
 from app.views import analytics
 from app.views import scan_history
 from app.views import batch_scanner
+from app.views import firewall_simulator
 
 # ─── Page Configuration ──────────────────────────────────────
 st.set_page_config(
@@ -307,8 +309,8 @@ st.markdown("""
 # ─── Dynamic Horizontal Nav Bar ──────────────────────────────
 selected = option_menu(
     menu_title=None,
-    options=["Dashboard Home", "Prompt Scanner", "Analytics", "Scan History", "Batch Scanner"],
-    icons=["house", "shield-check", "graph-up", "clock-history", "files"],
+    options=["Dashboard Home", "Prompt Scanner", "Firewall Simulator", "Analytics", "Scan History", "Batch Scanner"],
+    icons=["house", "shield-check", "shield-slash", "graph-up", "clock-history", "files"],
     menu_icon="cast",
     default_index=0,
     orientation="horizontal",
@@ -470,6 +472,8 @@ if selected == "Dashboard Home":
     render_home()
 elif selected == "Prompt Scanner":
     prompt_scanner.render()
+elif selected == "Firewall Simulator":
+    firewall_simulator.render()
 elif selected == "Analytics":
     analytics.render()
 elif selected == "Scan History":

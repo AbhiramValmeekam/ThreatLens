@@ -120,6 +120,37 @@ class Analytics(Base):
         return f"<Analytics(date={self.date}, scans={self.total_scans}, attacks={self.attacks_detected})>"
 
 
+class FirewallLog(Base):
+    """Logs of LLM Firewall actions."""
+    __tablename__ = "firewall_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    original_prompt = Column(Text, nullable=False)
+    sanitized_prompt = Column(Text, nullable=True)
+    risk_score = Column(Float, nullable=False, default=0.0)
+    threat_category = Column(String(100), nullable=True)
+    firewall_action = Column(String(50), nullable=False) # ALLOW, SANITIZE, BLOCK
+    heatmap_data = Column(Text, nullable=True) # JSON string of segments
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<FirewallLog(id={self.id}, action='{self.firewall_action}', risk={self.risk_score})>"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert record to dictionary for DataFrame/JSON use."""
+        return {
+            "id": self.id,
+            "original_prompt": self.original_prompt,
+            "sanitized_prompt": self.sanitized_prompt,
+            "risk_score": self.risk_score,
+            "threat_category": self.threat_category,
+            "firewall_action": self.firewall_action,
+            "heatmap_data": self.heatmap_data,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+
+
 # ============================================================
 # Database Initialization
 # ============================================================
@@ -513,3 +544,104 @@ def get_user_by_email(email: str) -> Optional[User]:
         return session.query(User).filter(User.email == email.strip().lower()).first()
     finally:
         session.close()
+
+
+# ============================================================
+# CRUD Operations — Firewall Logs
+# ============================================================
+
+def save_firewall_log(
+    original_prompt: str,
+    sanitized_prompt: Optional[str],
+    risk_score: float,
+    threat_category: Optional[str],
+    firewall_action: str,
+    heatmap_data: Optional[str] = None,
+) -> FirewallLog:
+    """Save a new firewall log entry to the database."""
+    session = get_session()
+    try:
+        log = FirewallLog(
+            original_prompt=original_prompt,
+            sanitized_prompt=sanitized_prompt,
+            risk_score=risk_score,
+            threat_category=threat_category,
+            firewall_action=firewall_action,
+            heatmap_data=heatmap_data,
+        )
+        session.add(log)
+        session.commit()
+        return log
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
+def get_firewall_logs(
+    limit: int = 100,
+    offset: int = 0,
+    search_query: Optional[str] = None,
+    action_filter: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Retrieve firewall logs with optional filtering and pagination."""
+    session = get_session()
+    try:
+        query = session.query(FirewallLog)
+        if search_query:
+            query = query.filter(
+                FirewallLog.original_prompt.ilike(f"%{search_query}%") |
+                FirewallLog.sanitized_prompt.ilike(f"%{search_query}%")
+            )
+        if action_filter:
+            query = query.filter(FirewallLog.firewall_action.in_(action_filter))
+        query = query.order_by(desc(FirewallLog.timestamp))
+        results = query.offset(offset).limit(limit).all()
+        return [r.to_dict() for r in results]
+    finally:
+        session.close()
+
+
+def get_total_firewall_log_count(
+    search_query: Optional[str] = None,
+    action_filter: Optional[List[str]] = None,
+) -> int:
+    """Get total count of firewall logs matching filters."""
+    session = get_session()
+    try:
+        query = session.query(func.count(FirewallLog.id))
+        if search_query:
+            query = query.filter(
+                FirewallLog.original_prompt.ilike(f"%{search_query}%") |
+                FirewallLog.sanitized_prompt.ilike(f"%{search_query}%")
+            )
+        if action_filter:
+            query = query.filter(FirewallLog.firewall_action.in_(action_filter))
+        return query.scalar() or 0
+    finally:
+        session.close()
+
+
+def get_firewall_stats() -> Dict[str, Any]:
+    """Calculate and return LLM Firewall metrics."""
+    session = get_session()
+    try:
+        allowed = session.query(func.count(FirewallLog.id)).filter(FirewallLog.firewall_action == "ALLOW").scalar() or 0
+        sanitized = session.query(func.count(FirewallLog.id)).filter(FirewallLog.firewall_action == "SANITIZE").scalar() or 0
+        blocked = session.query(func.count(FirewallLog.id)).filter(FirewallLog.firewall_action == "BLOCK").scalar() or 0
+        total = allowed + sanitized + blocked
+        
+        success_denominator = sanitized + blocked
+        success_rate = (sanitized / success_denominator * 100.0) if success_denominator > 0 else 100.0
+        
+        return {
+            "allowed_count": allowed,
+            "sanitized_count": sanitized,
+            "blocked_count": blocked,
+            "total_count": total,
+            "success_rate": round(success_rate, 1)
+        }
+    finally:
+        session.close()
+

@@ -27,7 +27,7 @@ def render():
     import plotly.express as px
     import pandas as pd
 
-    from src.database import init_db
+    from src.database import init_db, get_firewall_stats
     from src.analytics import (
         get_dashboard_stats,
         get_daily_attacks,
@@ -189,6 +189,75 @@ def render():
         <div class="stat-mini">
             <div class="label">Avg Risk Score</div>
             <div class="value" style="color: #7c3aed;">{stats['avg_risk_score']:.1f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("")
+
+    # ─── LLM Firewall Analytics Section ──────────────────────────
+    st.markdown('<div class="section-title">🛡️ LLM Firewall Analytics</div>', unsafe_allow_html=True)
+    
+    fw_stats = get_firewall_stats()
+    fw1, fw2, fw3, fw4 = st.columns(4)
+    with fw1:
+        st.markdown(f"""
+        <div class="stat-mini" style="border-color: rgba(74, 222, 128, 0.2);">
+            <div class="label" style="color: #4ade80;">Prompts Allowed</div>
+            <div class="value" style="color: #4ade80;">{fw_stats['allowed_count']:,}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with fw2:
+        st.markdown(f"""
+        <div class="stat-mini" style="border-color: rgba(251, 146, 60, 0.2);">
+            <div class="label" style="color: #fb923c;">Prompts Sanitized</div>
+            <div class="value" style="color: #fb923c;">{fw_stats['sanitized_count']:,}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with fw3:
+        st.markdown(f"""
+        <div class="stat-mini" style="border-color: rgba(248, 113, 113, 0.2);">
+            <div class="label" style="color: #f87171;">Prompts Blocked</div>
+            <div class="value" style="color: #f87171;">{fw_stats['blocked_count']:,}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with fw4:
+        st.markdown(f"""
+        <div class="stat-mini" style="border-color: rgba(0, 212, 255, 0.2);">
+            <div class="label" style="color: #00d4ff;">Sanitization Success Rate</div>
+            <div class="value" style="color: #00d4ff;">{fw_stats['success_rate']:.1f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("")
+    
+    fw_chart_col1, fw_chart_col2 = st.columns(2)
+    with fw_chart_col1:
+        st.markdown('<div class="chart-card"><h4>🛡️ Firewall Action Breakdown</h4></div>', unsafe_allow_html=True)
+        if fw_stats['total_count'] > 0:
+            fig_fw = go.Figure(go.Pie(
+                labels=["Allowed", "Sanitized", "Blocked"],
+                values=[fw_stats['allowed_count'], fw_stats['sanitized_count'], fw_stats['blocked_count']],
+                hole=0.55,
+                marker=dict(colors=["#2ed573", "#fb923c", "#ff4757"], line=dict(color="#0a0e17", width=2)),
+                textinfo="label+percent",
+                textfont=dict(size=11, color="#e0e6ed"),
+                hoverinfo="label+value+percent",
+            ))
+            fig_fw.update_layout(**PLOTLY_LAYOUT, height=260, showlegend=False)
+            st.plotly_chart(fig_fw, use_container_width=True)
+        else:
+            st.info("No firewall execution logs available yet.")
+            
+    with fw_chart_col2:
+        st.markdown('<div class="chart-card"><h4>ℹ️ Firewall Security Policies</h4></div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div style="background: rgba(15, 23, 42, 0.3); padding: 1rem 1.25rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.04); font-size: 0.85rem; color: #cbd5e1; height: 260px; overflow-y: auto; line-height: 1.6;">
+            <p style="margin-top: 0;"><strong>ThreatSentinel Firewall gateway policy enforcement:</strong></p>
+            <ul style="padding-left: 1.2rem; margin-bottom: 0;">
+                <li style="margin-bottom: 0.5rem;"><strong style="color: #4ade80;">ALLOW (&lt;40 risk):</strong> Incoming prompts are forwarded directly to target models without modification.</li>
+                <li style="margin-bottom: 0.5rem;"><strong style="color: #fb923c;">SANITIZE (40-70 risk):</strong> Malicious instructions are neutralized and high-risk terms are redacted with protective badges.</li>
+                <li><strong style="color: #f87171;">BLOCK (&gt;70 risk):</strong> Immediate threat containment. Prompts are dropped and a security warning is returned.</li>
+            </ul>
         </div>
         """, unsafe_allow_html=True)
 

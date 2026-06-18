@@ -74,9 +74,9 @@ def train_svm(
     y_train: pd.Series,
     X_test: pd.Series,
     y_test: pd.Series,
-    max_features: int = 10000,
-    ngram_range: Tuple[int, int] = (1, 3),
-    C: float = 1.0,
+    max_features: int = 20000,
+    ngram_range: Tuple[int, int] = (1, 2),
+    C: float = 0.5,
 ) -> Dict[str, Any]:
     """
     Train a TF-IDF + Linear SVM pipeline with calibrated probabilities.
@@ -118,9 +118,10 @@ def train_svm(
                 C=C,
                 class_weight="balanced",
                 random_state=42,
-                max_iter=10000,
+                max_iter=20000,
+                dual="auto",
             ),
-            cv=3,
+            cv=5,
         )),
     ])
 
@@ -161,9 +162,9 @@ def train_logreg(
     y_train: pd.Series,
     X_test: pd.Series,
     y_test: pd.Series,
-    max_features: int = 5000,
+    max_features: int = 15000,
     ngram_range: Tuple[int, int] = (1, 2),
-    C: float = 1.0,
+    C: float = 0.8,
 ) -> Dict[str, Any]:
     """
     Train a TF-IDF + Logistic Regression pipeline.
@@ -199,9 +200,10 @@ def train_logreg(
         ("clf", LogisticRegression(
             C=C,
             class_weight="balanced",
-            max_iter=1000,
+            max_iter=3000,
             random_state=42,
-            solver="lbfgs",
+            solver="saga",
+            n_jobs=-1,
         )),
     ])
 
@@ -517,7 +519,9 @@ def save_report(
 # Full Training Pipeline
 # ============================================================
 
-def run_full_pipeline() -> Dict[str, Any]:
+def run_full_pipeline(
+    sample_limit_per_category: Optional[int] = None,
+) -> Dict[str, Any]:
     """
     Run the complete training pipeline:
     
@@ -528,6 +532,10 @@ def run_full_pipeline() -> Dict[str, Any]:
     5. Train DeBERTa-v3 (if GPU available or user accepts CPU training)
     6. Generate all evaluation reports
     
+    Args:
+        sample_limit_per_category: Max samples per category to load.
+            Use 5000-10000 for fast CPU training, None for full dataset.
+    
     Returns:
         Dict with results from all model trainings
     """
@@ -537,12 +545,16 @@ def run_full_pipeline() -> Dict[str, Any]:
     print("FULL TRAINING PIPELINE")
     print("=" * 60)
     print(f"Started at: {datetime.now().isoformat()}")
+    if sample_limit_per_category:
+        print(f"Sample limit per category: {sample_limit_per_category:,}")
 
     # Step 1: Load data
     from src.data_loader import load_and_prepare_dataset
     from src.preprocess import preprocess_and_split
 
-    combined_df = load_and_prepare_dataset()
+    combined_df = load_and_prepare_dataset(
+        sample_limit_per_category=sample_limit_per_category,
+    )
     train_df, val_df, test_df = preprocess_and_split(combined_df)
 
     results = {}
@@ -599,6 +611,15 @@ def run_full_pipeline() -> Dict[str, Any]:
 # ============================================================
 
 if __name__ == "__main__":
-    # Add project root to path
+    import argparse
+
     sys.path.insert(0, BASE_DIR)
-    run_full_pipeline()
+
+    parser = argparse.ArgumentParser(description="Train ThreatLens ML models")
+    parser.add_argument(
+        "--sample-limit", type=int, default=None,
+        help="Max samples per category (e.g. 5000 for fast CPU training)",
+    )
+    args = parser.parse_args()
+
+    run_full_pipeline(sample_limit_per_category=args.sample_limit)

@@ -16,6 +16,7 @@ import json
 import csv
 import io
 from typing import Optional, List
+from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -32,7 +33,8 @@ if PROJECT_ROOT not in sys.path:
 
 from src.database import (
     init_db, save_scan, get_scan_history, get_total_scan_count,
-    create_user, get_user_by_email
+    create_user, get_user_by_email, save_firewall_log, get_firewall_logs,
+    get_total_firewall_log_count, get_firewall_stats
 )
 from src.auth_utils import (
     hash_password, verify_password, create_access_token, verify_access_token
@@ -75,6 +77,7 @@ security = HTTPBearer()
 
 _detector = None
 _explainer = None
+_firewall = None
 
 
 def _get_detector():
@@ -93,12 +96,21 @@ def _get_explainer():
     return _explainer
 
 
+def _get_firewall():
+    global _firewall
+    if _firewall is None:
+        from src.firewall import PromptSentinelFirewall
+        _firewall = PromptSentinelFirewall()
+    return _firewall
+
+
 @app.on_event("startup")
 async def startup():
     init_db()
     # Eagerly load models so first request isn't slow
     _get_detector()
     _get_explainer()
+    _get_firewall()
 
 
 # ─── Auth Dependency ─────────────────────────────────────────
@@ -292,6 +304,66 @@ async def scan_prompt(req: ScanRequest, user=Depends(get_current_user)):
         "reasons": result.reasons,
         "explanation": explanation,
     }
+
+
+# ─── LLM Firewall & Heatmap Endpoints (Protected) ─────────────
+
+@app.post("/api/firewall/simulate")
+async def simulate_firewall(req: ScanRequest, user=Depends(get_current_user)):
+    """Simulate prompt passing through the LLM Firewall."""
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+    
+    firewall = _get_firewall()
+    result = firewall.process_prompt(req.prompt)
+    return result
+
+
+@app.get("/api/firewall/logs")
+async def firewall_logs(
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    search: Optional[str] = Query(None),
+    action: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+):
+    """Get paginated firewall action logs."""
+    action_filter = action.split(",") if action else None
+    logs = get_firewall_logs(limit=limit, offset=offset, search_query=search, action_filter=action_filter)
+    total = get_total_firewall_log_count(search_query=search, action_filter=action_filter)
+    return {"data": logs, "total": total}
+
+
+@app.get("/api/firewall/stats")
+async def firewall_stats(user=Depends(get_current_user)):
+    """Get aggregated firewall analytics statistics."""
+    return get_firewall_stats()
+
+
+@app.post("/api/heatmap")
+async def generate_prompt_heatmap(req: ScanRequest, user=Depends(get_current_user)):
+    """Generate visual risk heatmap segments for a prompt."""
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+    
+    detector = _get_detector()
+    result = detector.predict(req.prompt)
+    
+    try:
+        explainer = _get_explainer()
+        explanation = explainer.explain(req.prompt, result.to_dict())
+    except Exception:
+        explanation = {
+            "keywords": [],
+            "shap_values": [],
+            "highlighted_segments": [],
+            "reasons": result.reasons,
+            "risk_factors": [],
+        }
+        
+    from src.heatmap import generate_heatmap
+    heatmap = generate_heatmap(req.prompt, explanation, result)
+    return heatmap
 
 
 @app.post("/api/batch-scan")

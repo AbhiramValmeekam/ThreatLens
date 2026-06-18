@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import MetricCard from "@/components/MetricCard";
+import ThreatHeatmap from "@/components/ThreatHeatmap";
 import { getDashboardStats, scanPrompt, type DashboardStats, type ScanResult } from "@/lib/api";
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -93,6 +94,13 @@ export default function DashboardHome() {
             <div className="metric-label">Severity</div>
             <div style={{ fontSize: "1rem", marginTop: "0.75rem", color: SEVERITY_COLORS[result.severity], fontWeight: "bold" }}>{result.severity}</div>
           </div>
+        </div>
+      )}
+
+      {/* Heatmap after quick scan */}
+      {result && quickPrompt.trim() && (
+        <div style={{ marginTop: "1rem" }}>
+          <ThreatHeatmap prompt={quickPrompt} compact title="🌡️ Quick Threat Heatmap" />
         </div>
       )}
 

@@ -6,6 +6,8 @@ import Link from "next/link";
 const PAGE_TITLES: Record<string, string> = {
   "/": "Dashboard Overview",
   "/scanner": "Interactive Prompt Scanner",
+  "/firewall": "LLM Firewall Simulator",
+  "/heatmap": "Threat Risk Heatmap",
   "/analytics": "Security Analytics & Insights",
   "/history": "Security Log History",
   "/batch": "Batch Scanner / Bulk Analysis",

@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { scanPrompt, type ScanResult } from "@/lib/api";
 import SeverityBadge from "@/components/SeverityBadge";
+import ThreatHeatmap from "@/components/ThreatHeatmap";
 
 const SEVERITY_COLORS: Record<string, string> = {
   Low: "#2ed573", Medium: "#ffd32a", High: "#ff9f43", Critical: "#ff4757",
@@ -176,6 +177,10 @@ export default function PromptScannerPage() {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* Threat Heatmap */}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "1.5rem 0" }} />
+          <ThreatHeatmap prompt={prompt} title="🌡️ Threat Risk Heatmap" />
 
           {/* Explainability */}
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", margin: "1.5rem 0" }} />

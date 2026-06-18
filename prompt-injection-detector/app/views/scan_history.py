@@ -280,15 +280,76 @@ def render():
         )
 
         if all_records:
-            export_df = pd.DataFrame(all_records)
-            export_cols = ["timestamp", "prompt", "risk_score", "attack_type", "severity", "confidence", "explanation"]
-            available_cols = [c for c in export_cols if c in export_df.columns]
-            csv_data = export_df[available_cols].to_csv(index=False)
+            import json
+            from src.database import get_session, FirewallLog
+            from src.firewall import PromptSentinelFirewall
+            from sqlalchemy import desc
+
+            firewall = PromptSentinelFirewall()
+
+            # Cache last 1000 firewall logs to optimize lookups
+            session = get_session()
+            try:
+                fw_logs = session.query(FirewallLog).order_by(desc(FirewallLog.timestamp)).limit(1000).all()
+                fw_cache = {log.original_prompt: log for log in fw_logs}
+            except Exception as e:
+                fw_cache = {}
+            finally:
+                session.close()
+
+            export_rows = []
+            for r in all_records:
+                prompt_text = r["prompt"]
+                
+                # Check cache for existing firewall action/sanitization
+                if prompt_text in fw_cache:
+                    fw_log = fw_cache[prompt_text]
+                    sanitized_prompt = fw_log.sanitized_prompt
+                    firewall_action = fw_log.firewall_action
+                    heatmap_json = fw_log.heatmap_data
+                else:
+                    # Dynamically simulate firewall response
+                    try:
+                        sim = firewall.process_prompt(prompt_text)
+                        sanitized_prompt = sim["sanitized_prompt"]
+                        firewall_action = sim["action_taken"]
+                        heatmap_json = json.dumps(sim["heatmap"])
+                    except Exception:
+                        sanitized_prompt = prompt_text
+                        firewall_action = "ALLOW"
+                        heatmap_json = "[]"
+
+                # Format heatmap representation to serial format: [text](SEVERITY)
+                try:
+                    segments = json.loads(heatmap_json)
+                    heatmap_vis = " ".join([f"[{s['text']}]({s['badge']})" for s in segments])
+                except Exception:
+                    heatmap_vis = f"[{prompt_text}](LOW)"
+
+                # Parse timestamp
+                t_str = r["timestamp"]
+                try:
+                    t_val = pd.to_datetime(t_str).strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    t_val = t_str
+
+                export_rows.append({
+                    "Original Prompt": prompt_text,
+                    "Sanitized Prompt": sanitized_prompt,
+                    "Risk Score": r["risk_score"],
+                    "Heatmap Visualization": heatmap_vis,
+                    "Threat Category": r["attack_type"],
+                    "Firewall Action": firewall_action,
+                    "Timestamp": t_val
+                })
+
+            export_df = pd.DataFrame(export_rows)
+            csv_data = export_df.to_csv(index=False)
 
             st.download_button(
-                label=f"⬇️ Export {len(all_records)} Records as CSV",
+                label=f"⬇️ Export {len(all_records)} Records as CSV Security Report",
                 data=csv_data,
-                file_name=f"scan_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                file_name=f"threatlens_security_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
                 use_container_width=True,
             )

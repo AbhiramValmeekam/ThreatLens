@@ -317,14 +317,17 @@ def load_and_prepare_dataset(
     include_safe_prompts: bool = True,
     balance_classes: bool = True,
     save_raw: bool = True,
+    sample_limit_per_category: Optional[int] = None,
 ) -> pd.DataFrame:
     """
-    Load all datasets, combine, clean, and prepare for training.
+    Load the consolidated dataset from data/processed/full_dataset.csv.
+    If the file does not exist, triggers run_collection_pipeline() to create it.
     
     Args:
-        include_safe_prompts: Whether to add generated safe prompts
+        include_safe_prompts: (Ignored, kept for compatibility)
         balance_classes: Whether to balance class distribution
-        save_raw: Whether to save the raw combined dataset
+        save_raw: (Ignored, kept for compatibility)
+        sample_limit_per_category: Max samples per category to return (useful for fast training)
     
     Returns:
         Cleaned, combined DataFrame with 'text' and 'label' columns
@@ -333,35 +336,19 @@ def load_and_prepare_dataset(
     print("[DataLoader] Loading and preparing datasets...")
     print("=" * 60)
 
-    # Ensure directories exist
-    os.makedirs(RAW_DIR, exist_ok=True)
-    os.makedirs(PROCESSED_DIR, exist_ok=True)
+    dataset_path = os.path.join(PROCESSED_DIR, "full_dataset.csv")
+    
+    if not os.path.exists(dataset_path):
+        print(f"[DataLoader] {dataset_path} not found. Running collection pipeline...")
+        from src.dataset_collector import run_collection_pipeline
+        run_collection_pipeline()
 
-    # Load individual datasets
-    dfs = []
+    if not os.path.exists(dataset_path):
+        raise FileNotFoundError(f"[DataLoader] Failed to generate dataset at {dataset_path}")
 
-    df_deepset = load_deepset_dataset()
-    if not df_deepset.empty:
-        dfs.append(df_deepset)
-
-    df_geeky = load_geekyrakshit_dataset()
-    if not df_geeky.empty:
-        dfs.append(df_geeky)
-
-    df_jailbreak = load_jailbreak_classification_dataset()
-    if not df_jailbreak.empty:
-        dfs.append(df_jailbreak)
-
-    if include_safe_prompts:
-        df_safe = generate_safe_prompts()
-        dfs.append(df_safe)
-
-    if not dfs:
-        raise ValueError("No datasets were loaded. Check internet connection and dataset availability.")
-
-    # Combine all datasets
-    combined = pd.concat(dfs, ignore_index=True)
-    print(f"\n[DataLoader] Combined dataset: {len(combined)} samples")
+    # Load dataset
+    print(f"[DataLoader] Loading consolidated dataset from {dataset_path}...")
+    combined = pd.read_csv(dataset_path)
 
     # Clean text
     combined["text"] = combined["text"].apply(clean_text)
@@ -378,16 +365,21 @@ def load_and_prepare_dataset(
     combined = combined.dropna(subset=["label"])
     combined["label"] = combined["label"].astype(int)
 
-    print(f"[DataLoader] Final dataset: {len(combined)} samples")
-    print(f"[DataLoader] Class distribution:\n{combined['label'].value_counts()}")
+    print(f"[DataLoader] Loaded dataset: {len(combined)} samples")
+    
+    # Slice by category if limit specified
+    if sample_limit_per_category is not None:
+        print(f"[DataLoader] Slicing dataset to max {sample_limit_per_category} samples per category...")
+        sliced_dfs = []
+        for cat_id in combined["category_id"].unique():
+            cat_df = combined[combined["category_id"] == cat_id]
+            if len(cat_df) > sample_limit_per_category:
+                cat_df = cat_df.sample(sample_limit_per_category, random_state=42)
+            sliced_dfs.append(cat_df)
+        combined = pd.concat(sliced_dfs, ignore_index=True)
+        print(f"[DataLoader] Sliced dataset size: {len(combined)} samples")
 
-    # Save raw combined
-    if save_raw:
-        raw_path = os.path.join(RAW_DIR, "combined_dataset.csv")
-        combined.to_csv(raw_path, index=False)
-        print(f"[DataLoader] Saved raw dataset to {raw_path}")
-
-    # Balance classes if requested
+    # Balance classes if requested (standard binary classification labels 0/1)
     if balance_classes:
         combined = _balance_classes(combined)
 

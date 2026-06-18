@@ -394,10 +394,74 @@ def render():
             )
             st.plotly_chart(fig_bars, use_container_width=True)
 
-        # ─── Explainability Section ──────────────────────────────
+        # ─── Threat Visualization & Explainability Section ─────────
         st.markdown("---")
-        st.markdown("### 🧠 Explainability Analysis")
+        st.markdown("### 🧠 Threat Visualization & Explainability")
 
+        # Visual Confidence Bar
+        status_color = color
+        st.markdown(f"""
+        <div style="margin-bottom: 1.5rem; animation: fadeIn 0.5s ease;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem;">
+                <span style="color: #8b95a5; font-size: 0.85rem; font-weight: 500;">Ensemble Classification Confidence</span>
+                <span style="color: {status_color}; font-size: 0.95rem; font-weight: 700; font-family: 'JetBrains Mono';">{result.confidence:.1f}%</span>
+            </div>
+            <div style="background-color: #0c111d; border-radius: 9999px; height: 10px; overflow: hidden; width: 100%; border: 1px solid rgba(255,255,255,0.05);">
+                <div style="background: linear-gradient(90deg, #00d4ff 0%, {status_color} 100%); height: 100%; width: {result.confidence}%; border-radius: 9999px; box-shadow: 0 0 10px {status_color}50;"></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Heatmap Card
+        st.markdown("""
+        <div class="explanation-card" style="animation: fadeInUp 0.5s ease;">
+            <h4>🔥 Visual Prompt Risk Heatmap</h4>
+        </div>
+        """, unsafe_allow_html=True)
+
+        from src.heatmap import generate_heatmap
+        heatmap = generate_heatmap(user_prompt, explanation, result)
+        st.markdown(f"""
+        <div style="background: rgba(10, 15, 30, 0.6); border: 1px solid rgba(0, 212, 255, 0.1); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.5rem; min-height: 80px;">
+            {heatmap['html']}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Highlighted segments list with severity badges
+        st.markdown("##### 🔍 Identified Threat Segments")
+        badge_style_map = {
+            "safe": "badge-safe",
+            "low": "badge-medium",
+            "medium": "badge-high",
+            "high": "badge-critical",
+            "critical": "badge-critical"
+        }
+
+        has_threats = False
+        segment_col1, segment_col2 = st.columns(2)
+        
+        # Split segments across columns for compact rendering
+        seg_list = [s for s in heatmap["segments"] if s["level"] != "safe"]
+        
+        for idx, seg in enumerate(seg_list):
+            has_threats = True
+            class_name = badge_style_map.get(seg["level"], "badge-safe")
+            target_col = segment_col1 if idx % 2 == 0 else segment_col2
+            with target_col:
+                st.markdown(
+                    f'<div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 8px;">'
+                    f'<span class="badge {class_name}">[{seg["severity"]}]</span>'
+                    f'<code style="background-color: #0e131f; color: #f1f5f9; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.04); font-family: \'JetBrains Mono\'; font-size: 0.85rem;">{seg["text"]}</code>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+        if not has_threats:
+            st.markdown('<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 1rem;"><span class="badge badge-safe">[LOW]</span> <span style="color: #94a3b8; font-size: 0.9rem;">No significant threat segments identified in the text.</span></div>', unsafe_allow_html=True)
+
+        st.markdown("<br/>", unsafe_allow_html=True)
+
+        # Col layout for the rest
         exp_col1, exp_col2 = st.columns(2)
 
         with exp_col1:
@@ -433,25 +497,9 @@ def render():
                 st.markdown("_Keyword analysis requires trained ML models._")
 
         with exp_col2:
-            # Highlighted segments
-            st.markdown("""
-            <div class="explanation-card">
-                <h4>🎯 Suspicious Segments</h4>
-            </div>
-            """, unsafe_allow_html=True)
-
-            segments = explanation.get("highlighted_segments", [])
-            if segments:
-                for seg in segments:
-                    st.markdown(
-                        f"- **`{seg['text']}`** — _{seg['description']}_"
-                    )
-            else:
-                st.markdown("_No specific suspicious segments identified._")
-
             # SHAP values
             st.markdown("""
-            <div class="explanation-card" style="margin-top: 1rem;">
+            <div class="explanation-card">
                 <h4>📊 SHAP Feature Importance</h4>
             </div>
             """, unsafe_allow_html=True)

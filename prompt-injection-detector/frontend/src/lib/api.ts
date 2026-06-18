@@ -299,3 +299,88 @@ export async function loginGoogleUser(idToken: string): Promise<AuthResponse> {
   }
   return res;
 }
+
+// ─── Firewall Types ──────────────────────────────────────────
+
+export interface FirewallResult {
+  original_prompt: string;
+  sanitized_prompt: string;
+  risk_score: number;
+  threat_category: string;
+  action_taken: "ALLOW" | "SANITIZE" | "BLOCK";
+  removed_content: string[];
+  heatmap: HeatmapSegment[];
+  timestamp: string;
+}
+
+export interface FirewallLog {
+  id: number;
+  original_prompt: string;
+  sanitized_prompt: string;
+  risk_score: number;
+  threat_category: string;
+  firewall_action: string;
+  timestamp: string;
+}
+
+export interface FirewallStats {
+  total_processed: number;
+  allowed: number;
+  sanitized: number;
+  blocked: number;
+  avg_risk_score: number;
+}
+
+export interface HeatmapSegment {
+  text: string;
+  start: number;
+  end: number;
+  score: number;
+  level: string;
+  severity: string;
+  badge: string;
+  color: string;
+}
+
+export interface HeatmapResult {
+  segments: HeatmapSegment[];
+  html: string;
+  risky_segments_only: HeatmapSegment[];
+}
+
+// ─── Firewall API Functions ──────────────────────────────────
+
+export async function simulateFirewall(prompt: string): Promise<FirewallResult> {
+  return apiFetch<FirewallResult>("/api/firewall/simulate", {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
+export async function getFirewallLogs(params: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  action?: string[];
+}): Promise<{ data: FirewallLog[]; total: number }> {
+  const query = new URLSearchParams();
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.offset) query.set("offset", String(params.offset));
+  if (params.search) query.set("search", params.search);
+  if (params.action?.length) query.set("action", params.action.join(","));
+  return apiFetch<{ data: FirewallLog[]; total: number }>(`/api/firewall/logs?${query}`);
+}
+
+export async function getFirewallStats(): Promise<FirewallStats> {
+  return apiFetch<FirewallStats>("/api/firewall/stats");
+}
+
+// ─── Heatmap API Functions ───────────────────────────────────
+
+export async function generateHeatmap(prompt: string): Promise<HeatmapResult> {
+  return apiFetch<HeatmapResult>("/api/heatmap", {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
