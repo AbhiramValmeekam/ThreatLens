@@ -29,10 +29,13 @@ from typing import Optional, Tuple
 import pandas as pd
 import numpy as np
 
+from src.deobfuscator import clean_and_deobfuscate
+
 # ─── Paths ────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
 PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed")
+
 
 
 def load_deepset_dataset() -> pd.DataFrame:
@@ -280,37 +283,10 @@ def generate_safe_prompts() -> pd.DataFrame:
 
 def clean_text(text: str) -> str:
     """
-    Clean and normalize a text prompt.
-    
-    Operations:
-        - Unicode normalization (NFKD)
-        - Strip leading/trailing whitespace
-        - Collapse multiple whitespace to single space
-        - Remove null bytes
-    
-    Args:
-        text: Raw text to clean
-    
-    Returns:
-        Cleaned text string
+    Clean and normalize a text prompt using the deobfuscator module.
     """
-    if not isinstance(text, str):
-        return ""
+    return clean_and_deobfuscate(text)
 
-    # Unicode normalization
-    text = unicodedata.normalize("NFKD", text)
-
-    # Remove null bytes
-    text = text.replace("\x00", "")
-
-    # Collapse whitespace (but preserve newlines for structure)
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-
-    # Strip
-    text = text.strip()
-
-    return text
 
 
 def load_and_prepare_dataset(
@@ -350,23 +326,10 @@ def load_and_prepare_dataset(
     print(f"[DataLoader] Loading consolidated dataset from {dataset_path}...")
     combined = pd.read_csv(dataset_path)
 
-    # Clean text
-    combined["text"] = combined["text"].apply(clean_text)
-
-    # Remove empty texts
-    combined = combined[combined["text"].str.len() > 0]
-
-    # Remove duplicates
-    before_dedup = len(combined)
-    combined = combined.drop_duplicates(subset=["text"])
-    print(f"[DataLoader] Removed {before_dedup - len(combined)} duplicates")
-
-    # Remove any rows with NaN labels
-    combined = combined.dropna(subset=["label"])
+    # Basic cleaning (drop missing text or labels first)
+    combined = combined.dropna(subset=["label", "text"])
     combined["label"] = combined["label"].astype(int)
 
-    print(f"[DataLoader] Loaded dataset: {len(combined)} samples")
-    
     # Slice by category if limit specified
     if sample_limit_per_category is not None:
         print(f"[DataLoader] Slicing dataset to max {sample_limit_per_category} samples per category...")
@@ -378,6 +341,20 @@ def load_and_prepare_dataset(
             sliced_dfs.append(cat_df)
         combined = pd.concat(sliced_dfs, ignore_index=True)
         print(f"[DataLoader] Sliced dataset size: {len(combined)} samples")
+
+    # Clean text (runs clean_and_deobfuscate) only on the final set
+    print("[DataLoader] Cleaning and de-obfuscating dataset text...")
+    combined["text"] = combined["text"].apply(clean_text)
+
+    # Remove empty texts
+    combined = combined[combined["text"].str.len() > 0]
+
+    # Remove duplicates
+    before_dedup = len(combined)
+    combined = combined.drop_duplicates(subset=["text"])
+    print(f"[DataLoader] Removed {before_dedup - len(combined)} duplicates")
+
+    print(f"[DataLoader] Loaded dataset: {len(combined)} samples")
 
     # Balance classes if requested (standard binary classification labels 0/1)
     if balance_classes:

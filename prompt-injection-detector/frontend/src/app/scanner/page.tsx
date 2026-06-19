@@ -45,7 +45,11 @@ export default function PromptScannerPage() {
   const color = result ? (SEVERITY_COLORS[result.severity] || "#2ed573") : "#2ed573";
 
   const modelScoresData = result
-    ? Object.entries(result.model_scores).map(([name, score]) => ({ name, score }))
+    ? Object.entries(result.model_scores).map(([name, score]) => ({
+        name: score === -1 ? `${name} (Unavailable)` : name,
+        score: score === -1 ? 0 : score,
+        isUnavailable: score === -1,
+      }))
     : [];
 
   return (
@@ -166,11 +170,14 @@ export default function PromptScannerPage() {
                   <YAxis type="category" dataKey="name" stroke="#c0c8d4" fontSize={12} width={120} />
                   <Tooltip
                     contentStyle={{ background: "#1a1f2e", border: "1px solid rgba(0,212,255,0.2)", borderRadius: 8, color: "#e0e6ed" }}
-                    formatter={((val: number) => [`${val.toFixed(1)}%`, "Score"]) as never}
+                    formatter={((val: number, name: string, props: any) => {
+                      if (props.payload.isUnavailable) return ["Unavailable", "Score"];
+                      return [`${val.toFixed(1)}%`, "Score"];
+                    }) as never}
                   />
                   <Bar dataKey="score" radius={[0, 4, 4, 0]}>
                     {modelScoresData.map((entry, i) => (
-                      <Cell key={i} fill={entry.score >= 50 ? "#ff4757" : "#2ed573"} />
+                      <Cell key={i} fill={entry.isUnavailable ? "#4a5568" : (entry.score >= 50 ? "#ff4757" : "#2ed573")} />
                     ))}
                   </Bar>
                 </BarChart>

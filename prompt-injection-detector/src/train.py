@@ -58,6 +58,124 @@ PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed")
 TARGET_NAMES = ["Safe", "Injection"]
 
 
+import random
+import re
+import base64
+
+# Synonym dictionary for injections
+SYNONYMS = {
+    "ignore": ["disregard", "bypass", "forget", "override", "skip", "neglect"],
+    "previous": ["prior", "above", "past", "earlier", "former", "preceding", "initial"],
+    "instructions": ["directives", "rules", "guidelines", "prompts", "commands", "constraints"],
+    "reveal": ["disclose", "output", "print", "show", "leak", "expose", "display"],
+    "system prompt": ["core prompt", "developer prompt", "initial instructions", "system text"],
+    "jailbreak": ["bypass", "exploit", "hack"],
+}
+
+HOMOGLYPH_CYRILLIC = {
+    'a': 'а', 'e': 'е', 'o': 'о', 'p': 'р', 'c': 'с', 'y': 'у', 'x': 'х', 'i': 'і', 's': 'ѕ',
+    'A': 'А', 'B': 'В', 'E': 'Е', 'K': 'К', 'M': 'М', 'H': 'Н', 'O': 'О', 'P': 'Р', 'C': 'С', 'T': 'Т', 'X': 'Х', 'Y': 'У'
+}
+
+def generate_synonym_variants(text: str) -> Optional[str]:
+    if not isinstance(text, str):
+        return None
+    words = text.split()
+    modified = False
+    for i, word in enumerate(words):
+        word_clean = re.sub(r'[^\w]', '', word).lower()
+        if word_clean in SYNONYMS:
+            syn = random.choice(SYNONYMS[word_clean])
+            if word.isupper():
+                syn = syn.upper()
+            elif word[0].isupper():
+                syn = syn.capitalize()
+            words[i] = word.replace(word_clean, syn)
+            modified = True
+    
+    candidate = " ".join(words)
+    for phrase, syn_list in SYNONYMS.items():
+        if " " in phrase and phrase in candidate.lower():
+            syn = random.choice(syn_list)
+            pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+            candidate = pattern.sub(syn, candidate)
+            modified = True
+            
+    if modified and candidate.strip() != text.strip():
+        return candidate
+    return None
+
+def make_spaced(text: str) -> str:
+    if not isinstance(text, str):
+        return ""
+    # Space out letters of standard words to simulate evasion
+    return " ".join([c for c in text if c != " "])
+
+def make_homoglyph(text: str) -> str:
+    if not isinstance(text, str):
+        return ""
+    return "".join([HOMOGLYPH_CYRILLIC.get(c, c) for c in text])
+
+def make_base64(text: str) -> str:
+    if not isinstance(text, str):
+        return ""
+    return base64.b64encode(text.encode("utf-8")).decode("utf-8")
+
+def augment_training_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Augment training dataframe with synonym-swapped and raw obfuscated variants.
+    Only processes positive (injection) samples.
+    """
+    print("[Augment] Running adversarial and synonym data augmentation...")
+    injections = df[df["label"] == 1].copy()
+    augmented_rows = []
+    
+    random.seed(42)
+    
+    for _, row in injections.iterrows():
+        text = row["text"]
+        
+        # 1. Synonym variation (100% of injection samples get a synonym variant)
+        syn_variant = generate_synonym_variants(text)
+        if syn_variant:
+            new_row = row.copy()
+            new_row["text"] = syn_variant
+            augmented_rows.append(new_row)
+            
+        # 2. Spaced text variation (20% chance)
+        if random.random() < 0.20:
+            spaced = make_spaced(text)
+            new_row = row.copy()
+            new_row["text"] = spaced
+            augmented_rows.append(new_row)
+            
+        # 3. Homoglyph variation (20% chance)
+        if random.random() < 0.20:
+            homoglyph = make_homoglyph(text)
+            new_row = row.copy()
+            new_row["text"] = homoglyph
+            augmented_rows.append(new_row)
+            
+        # 4. Base64 variation (10% chance)
+        if random.random() < 0.10:
+            b64_str = make_base64(text)
+            new_row = row.copy()
+            new_row["text"] = b64_str
+            augmented_rows.append(new_row)
+
+    if augmented_rows:
+        aug_df = pd.DataFrame(augmented_rows)
+        # Combine and shuffle
+        df = pd.concat([df, aug_df], ignore_index=True)
+        # Deduplicate
+        df = df.drop_duplicates(subset=["text"])
+        df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+        
+    print(f"[Augment] Augmentation complete. Added {len(augmented_rows)} synthetic samples.")
+    print(f"[Augment] New train dataset size: {len(df)} (Class distribution:\n{df['label'].value_counts()})")
+    return df
+
+
 def ensure_dirs() -> None:
     """Create output directories if they don't exist."""
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -557,7 +675,11 @@ def run_full_pipeline(
     )
     train_df, val_df, test_df = preprocess_and_split(combined_df)
 
+    # Step 1.5: Augment the training split with synonyms and adversarial obfuscations
+    train_df = augment_training_dataset(train_df)
+
     results = {}
+
 
     # Step 2: Train SVM
     try:
@@ -617,9 +739,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train ThreatLens ML models")
     parser.add_argument(
-        "--sample-limit", type=int, default=None,
-        help="Max samples per category (e.g. 5000 for fast CPU training)",
+        "--sample-limit", type=int, default=10000,
+        help="Max samples per category (e.g. 5000 for fast CPU training, default 10000)",
     )
     args = parser.parse_args()
+
 
     run_full_pipeline(sample_limit_per_category=args.sample_limit)

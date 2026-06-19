@@ -38,9 +38,11 @@ import streamlit as st
 
 from src.detector import DeBERTaDetector, SVMDetector, LogRegDetector
 from src.rule_engine import RuleEngine, ATTACK_CATEGORIES
+from src.deobfuscator import clean_and_deobfuscate
 
 # ─── Base Directory ───────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 
 @dataclass
@@ -197,7 +199,9 @@ class EnsembleDetector:
         Returns:
             ScanResult with comprehensive detection information
         """
-        if not text or not text.strip():
+        # Clean and de-obfuscate input text first
+        cleaned_text = clean_and_deobfuscate(text)
+        if not cleaned_text or not cleaned_text.strip():
             return self._safe_result()
 
         # Get predictions from each component
@@ -205,27 +209,27 @@ class EnsembleDetector:
 
         # DeBERTa
         if self.available_models.get("deberta", False):
-            deberta_result = self.deberta.predict(text)
+            deberta_result = self.deberta.predict(cleaned_text)
             model_predictions["deberta"] = deberta_result["injection_probability"]
         else:
             model_predictions["deberta"] = 0.0
 
         # SVM
         if self.available_models.get("svm", False):
-            svm_result = self.svm.predict(text)
+            svm_result = self.svm.predict(cleaned_text)
             model_predictions["svm"] = svm_result["injection_probability"]
         else:
             model_predictions["svm"] = 0.0
 
         # Logistic Regression
         if self.available_models.get("logistic_regression", False):
-            logreg_result = self.logreg.predict(text)
+            logreg_result = self.logreg.predict(cleaned_text)
             model_predictions["logistic_regression"] = logreg_result["injection_probability"]
         else:
             model_predictions["logistic_regression"] = 0.0
 
         # Rule Engine
-        rule_result = self.rule_engine.scan(text)
+        rule_result = self.rule_engine.scan(cleaned_text)
         model_predictions["rule_engine"] = rule_result["injection_probability"]
 
         # Calculate weighted ensemble score
@@ -247,8 +251,9 @@ class EnsembleDetector:
 
         # Classify attack type using rule engine
         category_id, category_name = self.rule_engine.classify_attack_type(
-            text, is_injection
+            cleaned_text, is_injection
         )
+
 
         # Determine severity
         severity = self._get_severity(risk_score)
@@ -260,10 +265,10 @@ class EnsembleDetector:
 
         # Build model scores dict for display
         model_scores = {
-            "DeBERTa-v3": round(model_predictions["deberta"] * 100, 1),
-            "Linear SVM": round(model_predictions["svm"] * 100, 1),
-            "Logistic Regression": round(model_predictions["logistic_regression"] * 100, 1),
-            "Rule Engine": round(model_predictions["rule_engine"] * 100, 1),
+            "DeBERTa-v3": round(model_predictions["deberta"] * 100, 1) if self.available_models.get("deberta", False) else -1.0,
+            "Linear SVM": round(model_predictions["svm"] * 100, 1) if self.available_models.get("svm", False) else -1.0,
+            "Logistic Regression": round(model_predictions["logistic_regression"] * 100, 1) if self.available_models.get("logistic_regression", False) else -1.0,
+            "Rule Engine": round(model_predictions["rule_engine"] * 100, 1) if self.available_models.get("rule_engine", False) else -1.0,
         }
 
         return ScanResult(
@@ -348,6 +353,13 @@ class EnsembleDetector:
 
     def _safe_result(self) -> ScanResult:
         """Return a clean safe result for empty or benign inputs."""
+        model_scores = {
+            "DeBERTa-v3": 0.0 if self.available_models.get("deberta", False) else -1.0,
+            "Linear SVM": 0.0 if self.available_models.get("svm", False) else -1.0,
+            "Logistic Regression": 0.0 if self.available_models.get("logistic_regression", False) else -1.0,
+            "Rule Engine": 0.0 if self.available_models.get("rule_engine", False) else -1.0,
+        }
+
         return ScanResult(
             risk_score=0.0,
             attack_type="Safe",
@@ -355,12 +367,7 @@ class EnsembleDetector:
             severity="Low",
             confidence=100.0,
             is_injection=False,
-            model_scores={
-                "DeBERTa-v3": 0.0,
-                "Linear SVM": 0.0,
-                "Logistic Regression": 0.0,
-                "Rule Engine": 0.0,
-            },
+            model_scores=model_scores,
             matched_patterns=[],
             reasons=[],
             ensemble_weights=self._get_effective_weights(),
